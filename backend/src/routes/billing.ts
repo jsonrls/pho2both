@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import { z } from "zod";
 import { asyncHandler, rateLimit } from "../security/http.js";
 import { getIdentity, rejectInvalidSessionForWrite, requireUser } from "../security/auth.js";
@@ -14,13 +14,12 @@ import {
 
 export const billingRouter = Router();
 
-// 1. GET /api/billing/plans (Public)
-billingRouter.get("/plans", (_req, res) => {
+export const getPublicPlans: RequestHandler = (_req, res) => {
   res.json({
     plans: Object.values(AVAILABLE_PLANS),
     plansById: AVAILABLE_PLANS,
   });
-});
+};
 
 // 2. GET /api/billing/status (Authenticated)
 billingRouter.get("/status", requireUser, asyncHandler(async (_req, res) => {

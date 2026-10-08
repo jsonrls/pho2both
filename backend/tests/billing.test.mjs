@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { randomUUID } from "node:crypto";
@@ -243,4 +245,13 @@ test("POST /api/billing/webhook activates Event Pass and Creator subscription vi
   const status3 = await user.request("/api/billing/status");
   assert.equal(status3.data.plan, "free");
   assert.equal(status3.data.isPaid, false);
+});
+
+test("production public billing catalog regression", () => {
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  execFileSync(process.execPath, [
+    "--import", "tsx", "--test",
+    fileURLToPath(new URL("./billing-public.test.mjs", import.meta.url)),
+  ], { timeout: 30_000, stdio: "pipe", env });
 });

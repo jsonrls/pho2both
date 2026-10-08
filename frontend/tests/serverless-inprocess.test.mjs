@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { NextRequest } from "next/server.js";
@@ -194,4 +196,13 @@ test("serverless in-process: signed webhook processes order.created and subscrip
   assert.equal(data.received, true);
   assert.equal(data.processed, true);
   assert.equal(data.plan, "event");
+});
+
+test("production public billing catalog regression", () => {
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  execFileSync(process.execPath, [
+    "--import", "tsx", "--test",
+    fileURLToPath(new URL("./billing-public.test.mjs", import.meta.url)),
+  ], { timeout: 30_000, stdio: "pipe", env });
 });

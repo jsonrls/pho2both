@@ -6,7 +6,7 @@ import { photosRouter } from "./routes/photos";
 import { stripsRouter } from "./routes/strips";
 import { authRouter } from "./routes/auth";
 import { libraryRouter } from "./routes/library";
-import { billingRouter } from "./routes/billing";
+import { billingRouter, getPublicPlans } from "./routes/billing";
 import { identityMiddleware, rejectInvalidSessionForWrite } from "./security/auth";
 import { errorHandler, rateLimit, trustedOrigins } from "./security/http";
 
@@ -27,7 +27,9 @@ app.use((req, res, next) => {
 app.get("/", (_req, res) => { res.json({ status: "online" }); });
 app.use("/api/health", healthRouter);
 app.use("/api/billing/webhook", express.raw({ type: "*/*", limit: "1mb" }));
-app.use("/api", rateLimit(300, 60_000), identityMiddleware);
+app.use("/api", rateLimit(300, 60_000));
+app.get("/api/billing/plans", getPublicPlans);
+app.use("/api", identityMiddleware);
 app.use((req, res, next) => {
   const isAuthRecovery = req.method === "POST" && /^\/auth\/(signin|signup|logout|forgot-password|reset-password)\/?$/i.test(req.path);
   const isBillingWebhook = req.method === "POST" && /^\/billing\/webhook\/?$/i.test(req.path);
