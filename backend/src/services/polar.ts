@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, desc } from "drizzle-orm";
 import { Webhook } from "standardwebhooks";
-import { createPolar } from "@polar-sh/sdk/2026-10";
+import { createPolar, type models } from "@polar-sh/sdk/2026-10";
 import { getDb, schema } from "../db/index.js";
 import type { Subscription, User } from "../db/schema.js";
 import { memoryUsers } from "../security/auth.js";
@@ -138,10 +138,24 @@ export const AVAILABLE_PLANS: Record<PlanId, PlanMeta> = {
 
 export const memorySubscriptions = new Map<string, Subscription>();
 
+export class BillingConfigurationError extends Error {}
+
+export function logBillingFailure(operation: string, error: unknown) {
+  const status = typeof error === "object" && error !== null && "statusCode" in error ? error.statusCode : undefined;
+  const upstreamStatus = typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599 ? status : undefined;
+  console.error(JSON.stringify({
+    event: "billing_failed",
+    operation,
+    category: error instanceof BillingConfigurationError ? "configuration" : upstreamStatus ? "upstream" : "internal",
+    ...(upstreamStatus ? { upstreamStatus } : {}),
+  }));
+}
+
 function getPolarClient() {
   const token = process.env.POLAR_ACCESS_TOKEN?.trim();
-  if (!token) return null;
-  const environment = (process.env.POLAR_SERVER || (process.env.NODE_ENV === "production" ? "production" : "sandbox")) as "production" | "sandbox";
+  if (!token) throw new BillingConfigurationError("POLAR_ACCESS_TOKEN is not configured");
+  const environment = process.env.POLAR_SERVER || (process.env.NODE_ENV === "production" ? "production" : "sandbox");
+  if (environment !== "production" && environment !== "sandbox") throw new BillingConfigurationError("Invalid POLAR_SERVER");
   return createPolar({ accessToken: token, environment });
 }
 
@@ -176,47 +190,43 @@ export async function createCheckoutSession(params: {
   successUrl?: string;
 }): Promise<{ checkoutUrl: string; checkoutId?: string }> {
   const { userId, email, plan, successUrl } = params;
-  const productId = getProductIdForPlan(plan);
-  if (!productId) {
-    throw new Error(`Invalid plan for checkout: ${plan}`);
-  }
+  const productVariables: Partial<Record<PlanId, string>> = {
+    creator_monthly: "POLAR_PRODUCT_CREATOR_MONTHLY",
+    creator_yearly: "POLAR_PRODUCT_CREATOR_YEARLY",
+    event: "POLAR_PRODUCT_EVENT_PASS",
+  };
+  const productVariable = productVariables[plan];
+  const productId = productVariable ? process.env[productVariable]?.trim() : undefined;
+  if (!productId) throw new BillingConfigurationError("Checkout product is not configured");
 
   const client = getPolarClient();
-  const returnUrl = successUrl || `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth?checkout=success`;
-
-  if (client) {
-    const isYearly = plan === "creator_yearly";
-    // Create checkout with metadata linking customer to user ID
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const payload: any = {
-      productId,
-      customerEmail: email,
-      customerExternalId: userId,
-      metadata: { userId, plan },
-      successUrl: returnUrl,
-    };
-    if (isYearly) {
-      payload.trialPeriodDays = 7;
-    }
-    const checkout = await client.checkouts.create(payload);
-    return { checkoutUrl: checkout.url, checkoutId: checkout.id };
+  const frontendUrl = process.env.FRONTEND_URL?.trim();
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  const localMode = ["development", "test"].includes(process.env.NODE_ENV || "");
+  const origin = frontendUrl || (productionHost ? `https://${productionHost}` : localMode ? "http://localhost:3000" : undefined);
+  if (!successUrl && !origin) throw new BillingConfigurationError("Checkout return URL is not configured");
+  const returnUrl = successUrl || new URL("/auth?checkout=success", origin).href;
+  const parsedUrl = new URL(returnUrl);
+  if (!["http:", "https:"].includes(parsedUrl.protocol) || (!localMode && ["localhost", "127.0.0.1", "[::1]"].includes(parsedUrl.hostname))) {
+    throw new BillingConfigurationError("Invalid checkout return URL");
   }
-
-  // Development/Test mock mode
-  return {
-    checkoutUrl: `https://sandbox.polar.sh/checkout/mock_${plan}?user_id=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}&success_url=${encodeURIComponent(returnUrl)}`,
-    checkoutId: `chk_mock_${randomUUID()}`,
+  const payload: models.CheckoutCreate = {
+    products: [productId],
+    customer_email: email,
+    external_customer_id: userId,
+    metadata: { userId, plan },
+    success_url: returnUrl,
+    ...(plan === "creator_yearly" ? { trial_interval: "day", trial_interval_count: 7 } : {}),
   };
+  const checkout = await client.checkouts.create(payload);
+  return { checkoutUrl: checkout.url, checkoutId: checkout.id };
 }
 
 export async function createCustomerPortalSession(polarCustomerId: string): Promise<{ portalUrl: string }> {
   if (!polarCustomerId) throw new Error("Missing Polar customer ID");
   const client = getPolarClient();
-  if (client) {
-    const session = await client.customerSessions.create({ customer_id: polarCustomerId });
-    return { portalUrl: session.customer_portal_url };
-  }
-  return { portalUrl: `https://sandbox.polar.sh/portal/mock_${polarCustomerId}` };
+  const session = await client.customerSessions.create({ customer_id: polarCustomerId });
+  return { portalUrl: session.customer_portal_url };
 }
 
 export function verifyWebhook(

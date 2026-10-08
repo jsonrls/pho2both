@@ -1,3 +1,4 @@
+import { installPolarTransport } from "./fixtures/polar-transport.mjs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
@@ -10,6 +11,9 @@ process.env.NODE_ENV = "test";
 process.env.FRONTEND_URL = "http://localhost:3001";
 const WEBHOOK_SECRET = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw";
 process.env.POLAR_WEBHOOK_SECRET = WEBHOOK_SECRET;
+
+const polarTransport = installPolarTransport();
+after(() => polarTransport.restore());
 
 const { app } = await import("../src/app.ts");
 const { memoryUsers } = await import("../src/security/auth.ts");
@@ -78,7 +82,7 @@ test("GET /api/billing/status requires authenticated session", async () => {
   assert.equal(anon.data.code, "AUTH_REQUIRED");
 
   // Sign up user
-  const email = `billing-test-${randomUUID()}@example.invalid`;
+  const email = "billing-test@example.invalid";
   const signup = await user.request("/api/auth/signup", {
     method: "POST",
     body: { email, password, name: "Billing Tester" }
@@ -253,5 +257,6 @@ test("production public billing catalog regression", () => {
   execFileSync(process.execPath, [
     "--import", "tsx", "--test",
     fileURLToPath(new URL("./billing-public.test.mjs", import.meta.url)),
+    fileURLToPath(new URL("./polar-checkout.test.mjs", import.meta.url)),
   ], { timeout: 30_000, stdio: "pipe", env });
 });

@@ -7,6 +7,7 @@ import {
   createCheckoutSession,
   createCustomerPortalSession,
   getUserPlan,
+  logBillingFailure,
   syncWebhookEvent,
   verifyWebhook,
   type PlanId,
@@ -54,7 +55,7 @@ billingRouter.post("/checkout", requireUser, rateLimit(15, 60_000), asyncHandler
     });
     res.json(session);
   } catch (err) {
-    console.error("[billing-checkout-failed]", err);
+    logBillingFailure("checkout", err);
     res.status(500).json({ error: "Could not initiate checkout session. Please try again.", code: "CHECKOUT_FAILED" });
   }
 }));
@@ -78,7 +79,7 @@ billingRouter.post("/portal", requireUser, rateLimit(15, 60_000), asyncHandler(a
     const portal = await createCustomerPortalSession(polarCustomerId);
     res.json(portal);
   } catch (err) {
-    console.error("[billing-portal-failed]", err);
+    logBillingFailure("portal", err);
     res.status(500).json({ error: "Could not open customer portal. Please try again.", code: "PORTAL_FAILED" });
   }
 }));
@@ -95,7 +96,7 @@ billingRouter.post("/webhook", asyncHandler(async (req, res) => {
   try {
     event = verifyWebhook(rawPayload, req.headers);
   } catch (err) {
-    console.warn("[polar-webhook-signature-invalid]", err instanceof Error ? err.message : err);
+    logBillingFailure("webhook_signature", err);
     res.status(403).json({ error: "Invalid webhook signature", code: "INVALID_SIGNATURE" });
     return;
   }
@@ -104,7 +105,7 @@ billingRouter.post("/webhook", asyncHandler(async (req, res) => {
     const result = await syncWebhookEvent(event);
     res.status(200).json({ received: true, ...result });
   } catch (err) {
-    console.error("[polar-webhook-processing-error]", err);
+    logBillingFailure("webhook_processing", err);
     res.status(500).json({ error: "Failed to process webhook event", code: "WEBHOOK_FAILED" });
   }
 }));

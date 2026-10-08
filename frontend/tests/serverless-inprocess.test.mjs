@@ -204,5 +204,6 @@ test("production public billing catalog regression", () => {
   execFileSync(process.execPath, [
     "--import", "tsx", "--test",
     fileURLToPath(new URL("./billing-public.test.mjs", import.meta.url)),
+    fileURLToPath(new URL("./polar-checkout.test.mjs", import.meta.url)),
   ], { timeout: 30_000, stdio: "pipe", env });
 });
