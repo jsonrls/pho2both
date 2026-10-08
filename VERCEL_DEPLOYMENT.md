@@ -85,6 +85,8 @@ Pho2Booth runs as a **single, unified project** in your Vercel account:
 3. Configure the project:
    - **Root Directory**: Click **Edit** and set to `frontend` (**Required** — Pho2Booth is a monorepo, and Next.js resides in `frontend/`)
    - **Framework Preset**: **Next.js** (automatically detected once Root Directory is set to `frontend`)
+   - **Build Command and Output Directory**: Leave overrides disabled so Next.js uses its defaults relative to `frontend`.
+   - **Install Command**: `frontend/vercel.json` sets `npm ci --prefix . --workspaces=false --include=optional`. This uses the frontend lockfile, including native packages for Vercel's Linux builds, instead of the workspace root lockfile.
 4. Expand **Environment Variables** and add:
 
    | Variable | Value | Notes |
