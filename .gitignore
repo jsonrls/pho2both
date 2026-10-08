@@ -30,7 +30,6 @@ build/
 # Vercel deployment & CLI
 .vercel/
 .vercel
-VERCEL_DEPLOYMENT.md
 
 
 # TypeScript

@@ -91,7 +91,6 @@ pho2booth/
 │   │   └── index.ts                  # Dedicated Express HTTP server entry point
 │   └── package.json
 │
-├── vercel.json                       # Vercel deployment configuration
 ├── package.json                      # Root workspace scripts
 └── README.md
 ```
@@ -194,11 +193,9 @@ Pho2Booth deploys directly to **Vercel as a single project** with zero external 
 
 1. **Push your repository** to GitHub, GitLab, or Bitbucket.
 2. In the [Vercel Dashboard](https://vercel.com/new), click **Add New Project** and import your repository.
-3. Vercel automatically detects the configuration via `vercel.json`:
-   - **Framework Preset:** `Next.js`
-   - **Build Command:** `npm run build --prefix frontend`
-   - **Output Directory:** `frontend/.next`
-   - **Install Command:** `npm install`
+3. Configure project settings:
+   - **Root Directory:** Click **Edit** and set to `frontend` (**Required** — Pho2Booth is a monorepo, and Next.js is located in `frontend/`)
+   - **Framework Preset:** `Next.js` (automatically detected once Root Directory is set to `frontend`)
 4. Add the following **Environment Variables** in Vercel:
 
 | Variable | Required | Description |
