@@ -1,0 +1,7 @@
+# Photo booth sample
+
+`booth-friends.png` was created with the built-in image generation tool for the Pho2Booth redesign. It depicts fictional people and is used as sample photography, including the camera-free demo. The four photos are arranged as an edge-to-edge 2 × 2 contact sheet.
+
+Generation prompt:
+
+> Use case: photorealistic-natural. Asset type: sample photography for a warm playful browser photo booth website. Create a single landscape image, a precise 2x2 contact sheet of FOUR edge-to-edge candid photo-booth photos, with no gutters or borders, so each quadrant can be displayed independently with CSS. All four photos show the SAME two fictional happy stylish young adult friends, one Asian woman with a short dark bob and an oatmeal shirt, one woman with brown wavy hair and a burgundy top, posing very close together against a warm terracotta-orange studio background. Upper left: both laugh openly at camera. Upper right: playful peace signs and squinty smiles. Lower left: shoulders touching, cheeks together, joyful natural smiles. Lower right: one hugs the other from behind, both make silly faces. Natural unretouched analog flash photography, subtle film grain, warm nostalgic colors, realistic hands and facial features. Tight head-and-shoulders composition with ample top room in EVERY quadrant. EXACTLY four equally sized separate photos in 2x2 grid, same people, no text, no watermark, no frames, no UI. This is sample imagery for the redesign; upbeat and candid, inclusive modern indie photographic studio art direction.

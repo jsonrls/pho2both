@@ -1,0 +1,79 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Environment variables & secrets
+.env
+.env*.local
+.env.development
+.env.test
+.env.production
+!.env.example
+!*.env.example
+
+# Neon CLI & local config
+.neon/
+.neon
+
+# Next.js & Web build outputs
+.next/
+out/
+dist/
+build/
+
+# Vercel deployment & CLI
+.vercel/
+.vercel
+VERCEL_DEPLOYMENT.md
+
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+
+# Logs & Debug
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# Operating System & Cache
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.pem
+
+# IDE & Editor files
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*~
+
+# Temporary / Scratch
+tmp/
+temp/

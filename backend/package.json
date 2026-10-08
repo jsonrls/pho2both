@@ -1,0 +1,48 @@
+{
+  "name": "pho2booth-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Backend API for Pho2Booth powered by Neon Serverless Postgres and Drizzle ORM",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "NODE_ENV=development tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:migrate": "drizzle-kit migrate --config drizzle.config.ts",
+    "test:guardrails": "node --import tsx --test tests/guardrails.test.mjs",
+    "test:library": "node --import tsx --test tests/library.test.mjs",
+    "test:isolation": "node --import tsx --test tests/cross-user.test.mjs",
+    "test:billing": "node --import tsx --test tests/billing.test.mjs",
+    "test": "node --import tsx --test tests/guardrails.test.mjs tests/library.test.mjs tests/cross-user.test.mjs tests/billing.test.mjs"
+  },
+  "keywords": [
+    "photobooth",
+    "neon",
+    "postgres",
+    "drizzle-orm",
+    "express",
+    "typescript"
+  ],
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "@polar-sh/sdk": "^1.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.45.3",
+    "express": "^4.21.2",
+    "nanoid": "^5.0.9",
+    "standardwebhooks": "^1.1.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.13.8",
+    "drizzle-kit": "^0.30.5",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

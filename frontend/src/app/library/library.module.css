@@ -1,0 +1,37 @@
+.main { padding-block: 44px 72px; min-height: 75vh; }
+.heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+.heading h1 { font-size: clamp(32px, 4vw, 44px); margin: 12px 0; }
+.heading h1 span { color: var(--tomato); }
+.main p { color: var(--muted-foreground); }
+.views { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
+.views button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+.sessions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.card { min-width: 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); overflow-wrap: anywhere; }
+.copy { padding: 18px; }
+.copy h2 { font-size: 22px; margin-bottom: 12px; }
+.copy p { font-size: 13px; margin-bottom: 10px; }
+.copy a { margin-top: 6px; }
+.preview { height: 300px; background: #eeeade; display: grid; place-items: center; padding: 18px; text-align: center; }
+.preview img { width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+.preview p { margin-bottom: 12px; }
+.state { padding: 32px; border: 1px solid var(--border); background: var(--surface); border-radius: 14px; }
+.state h2 { font-size: 24px; margin-bottom: 12px; }
+.state p { margin-bottom: 16px; }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-block: 20px; }
+.main button, .main a, .dialog button { white-space: normal; }
+.note { font-size: 13px; margin-top: 28px; }
+.dialog { width: min(900px, calc(100vw - 32px)); }
+.viewer { height: min(55dvh, 540px); min-height: 160px; outline-offset: -3px; }
+.viewer .preview { height: 100%; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.choices button { min-width: 44px; min-height: 44px; border: 1px solid var(--muted-foreground); border-radius: 8px; background: var(--surface); }
+.choices button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+@media (max-width: 1050px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 780px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sessions { grid-template-columns: 1fr; } }
+@media (max-width: 500px) { .main { padding-top: 30px; } .grid { grid-template-columns: 1fr; } .dialog { padding: 24px 16px; } .state { padding: 22px; } .actions > * { flex: 1; } }
+
+.imageLink { display: block; width: 100%; height: 100%; min-height: 0; }
+
+.choice { width: 76px; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; }
+.choice .preview { height: 64px; padding: 4px; font-size: 10px; overflow-wrap: anywhere; }
