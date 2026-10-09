@@ -6,6 +6,7 @@ import { CapturedShot } from '@/types/booth';
 import { FRAME_COLORS } from '@/lib/constants';
 import { useAuth } from '@/lib/authContext';
 import { drawWatermark } from '@/lib/watermark';
+import { shouldWatermark } from '@/lib/planAccess';
 import { drawCover, loadStudioImage, motionFrame, recordMotion, encodeLoop, yieldExport } from './motionExport';
 import styles from './Studios.module.css';
 
@@ -81,7 +82,7 @@ export function MotionStudio({ shots, onBack, reel = false }: Props & { reel?: b
           ctx.fillStyle = frame.textColor; ctx.textAlign = 'center';
           ctx.font = 'bold 24px sans-serif'; ctx.fillText(caption, w / 2, 43, w - 40);
           ctx.font = '16px sans-serif'; ctx.fillText(reel ? 'PHO2BOOTH • VIDEO REEL' : 'PHO2BOOTH • MOTION LOOP', w / 2, h - 48);
-          drawWatermark(ctx, w, h, 1, !user);
+          drawWatermark(ctx, w, h, 1, shouldWatermark(user?.plan));
         };
         const canvas = canvasRef.current;
         if (!canvas) throw new Error('Preview canvas is unavailable. Retry the preview.');

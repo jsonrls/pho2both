@@ -7,10 +7,13 @@ import { Check, Loader2, Maximize, Minimize } from "lucide-react";
 import { Brand } from "@/components/Brand";
 import { Dialog } from "@/components/Dialog";
 import { AccountDropdown } from "@/components/AccountDropdown";
+import { PlanBanner } from "@/components/PlanBanner";
 import { LandingPage, type StartBoothOptions } from "@/components/LandingPage";
 import { PhotoPreviewScreen } from "@/components/PhotoPreviewScreen";
 import { FormatSelectionScreen } from "@/components/FormatSelectionScreen";
 import { FRAME_COLORS, LAYOUTS } from "@/lib/constants";
+import { useAuth } from "@/lib/authContext";
+import { isFilterUnlocked, isLayoutUnlocked } from "@/lib/planAccess";
 import type { CapturedShot, FilterType, FlowStep, FrameColorOption, LayoutType, OutputFormat } from "@/types/booth";
 
 function LoadingStudio() {
@@ -27,6 +30,8 @@ const AiEffectStudio = dynamic(() => import("@/components/AiEffectStudio").then(
 function HomeExperience() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
+  const plan = user?.plan ?? null;
   const [flowStep, setFlowStep] = useState<FlowStep>(searchParams.get("booth") === "1" ? "camera" : "landing");
   const [selectedFormat, setSelectedFormat] = useState<OutputFormat>("strip");
   const [visitedFormats, setVisitedFormats] = useState<OutputFormat[]>([]);
@@ -72,13 +77,16 @@ function HomeExperience() {
     setVisitedFormats([]);
     setCaptureVersion((version) => version + 1);
     setSelectedHeroIndex(0);
+    // Defense-in-depth: never let a landing preset force a premium layout or
+    // filter onto a free/guest visitor. Premium picks fall back to free-tier.
     if (options?.layout) {
-      setSelectedLayout(options.layout);
-      setTargetCount(Math.max(2, LAYOUTS.find((layout) => layout.id === options.layout)?.count || 4));
+      const layout = isLayoutUnlocked(plan, options.layout) ? options.layout : "strip-4";
+      setSelectedLayout(layout);
+      setTargetCount(Math.max(2, LAYOUTS.find((item) => item.id === layout)?.count || 4));
     }
     if (options?.frame) setSelectedFrame(options.frame);
     if (options?.eventName) setEventName(options.eventName);
-    if (options?.filter) setActiveFilter(options.filter);
+    if (options?.filter) setActiveFilter(isFilterUnlocked(plan, options.filter) ? options.filter : "original");
     if (options?.format) setSelectedFormat(options.format);
     goToStep("camera");
   };
@@ -140,6 +148,7 @@ function HomeExperience() {
           </div>
         </div>
       </header>
+      <PlanBanner />
       <main id="main-content" className="page-container" tabIndex={-1}>
         {fullscreenError && <p className="status-note" role="status">{fullscreenError}</p>}
         {flowStep === "camera" && <CameraView key={captureVersion} targetCount={targetCount} onTargetCountChange={setTargetCount} countdownSeconds={countdownSeconds} onCountdownChange={setCountdownSeconds} activeFilter={activeFilter} onFilterChange={setActiveFilter} selectedFrame={selectedFrame} onFrameChange={setSelectedFrame} selectedLayout={selectedLayout} onLayoutChange={setSelectedLayout} onCaptureComplete={finishCapture} eventName={eventName} onEventNameChange={setEventName} />}

@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import NextImage from "next/image";
-import { Camera, Check, Edit3, Upload, RotateCcw } from "lucide-react";
+import Link from "next/link";
+import { Camera, Check, Crown, Edit3, Lock, Upload, RotateCcw } from "lucide-react";
 import { CapturedShot, FilterType, FrameColorOption, LayoutType } from "@/types/booth";
 import { FILTERS, FRAME_COLORS, LAYOUTS, EVENT_TEMPLATES } from "@/lib/constants";
 import { BACKDROP_TRACKS } from "@/lib/backdropTracks";
+import { useAuth } from "@/lib/authContext";
+import { isFilterUnlocked, isLayoutUnlocked } from "@/lib/planAccess";
 import {
   getSelfieSegmenter,
   renderCompositedVideo,
@@ -134,6 +137,8 @@ export function CameraView({
   eventName = "The good times club",
   onEventNameChange,
 }: CameraViewProps) {
+  const { user } = useAuth();
+  const plan = user?.plan ?? null;
   const [isEditingEvent, setIsEditingEvent] = useState(false);
   const [tempEventName, setTempEventName] = useState(eventName);
 
@@ -372,7 +377,36 @@ export function CameraView({
         <div className={styles.tabs} role="group" aria-label="Camera settings">{["filters", "backdrop", "style"].map(tab => <button key={tab} aria-pressed={panel === tab} onClick={() => { setPanel(tab); setSearch(""); }}>{tab === "backdrop" ? "Backdrop" : tab === "style" ? "Frame & layout" : "Filters"}</button>)}</div>
         <label className={styles.search}><span className="control-label">{panel === "filters" ? "Find a filter" : panel === "backdrop" ? "Find a backdrop track" : "Find a layout or theme"}</span><input className="control-input" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search…" /></label>
         <fieldset disabled={busy} className={styles.panel}>
-          {panel === "filters" && <div className={styles.filterGrid}>{cameraFilters.filter(item => match(`${item.name} ${item.category}`)).map(item => <button key={item.id} aria-pressed={(filterAliases[activeFilter] || activeFilter) === item.id} onClick={() => onFilterChange(item.id)}><PhotoArt index={0} alt="" filter={item.cssFilter} /><span>{item.name}</span></button>)}</div>}
+          {panel === "filters" && (
+            <div className={styles.filterGrid}>
+              {cameraFilters.filter(item => match(`${item.name} ${item.category}`)).map(item => {
+                const locked = !isFilterUnlocked(plan, item.id);
+                if (locked) {
+                  return (
+                    <Link
+                      key={item.id}
+                      href="/pricing"
+                      className={styles.filterLocked}
+                      aria-label={`${item.name} — locked, upgrade to unlock`}
+                      title={`${item.name} · Upgrade to Creator to unlock`}
+                    >
+                      <span className={styles.filterLockedArt} style={{ filter: item.cssFilter }} aria-hidden="true" />
+                      <span className={styles.filterName}>
+                        {item.name}
+                        <Lock size={11} aria-hidden="true" />
+                      </span>
+                    </Link>
+                  );
+                }
+                return (
+                  <button key={item.id} aria-pressed={(filterAliases[activeFilter] || activeFilter) === item.id} onClick={() => onFilterChange(item.id)}>
+                    <PhotoArt index={0} alt="" filter={item.cssFilter} />
+                    <span>{item.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {panel === "backdrop" && (
             <div>
               <p className={styles.hint}>
@@ -455,11 +489,14 @@ export function CameraView({
               >
                 {cameraLayoutGroups.map(group => (
                   <optgroup key={group.category} label={group.category}>
-                    {group.items.map(item => (
-                      <option value={item.id} key={item.id}>
-                        {item.name} · {item.count} {item.count === 1 ? "photo" : "photos"}
-                      </option>
-                    ))}
+                    {group.items.map(item => {
+                      const locked = !isLayoutUnlocked(plan, item.id);
+                      return (
+                        <option value={item.id} key={item.id} disabled={locked}>
+                          {item.name} · {item.count} {item.count === 1 ? "photo" : "photos"}{locked ? " · Creator" : ""}
+                        </option>
+                      );
+                    })}
                   </optgroup>
                 ))}
               </select>
@@ -467,7 +504,19 @@ export function CameraView({
               <div className={styles.colors}>{FRAME_COLORS.map(frame => <button key={frame.id} aria-label={frame.name} title={frame.name} aria-pressed={selectedFrame.id === frame.id} style={{ background: frame.hex, color: frame.textColor }} onClick={() => { setTemplateId(null); onFrameChange(frame); }}>{selectedFrame.id === frame.id ? "✓" : ""}</button>)}</div>
               <p className="control-label">Event themes</p>
               <p className={styles.hint}>Applies the theme’s frame color and recommended layout.</p>
-              <div className={styles.themes}>{EVENT_TEMPLATES.filter(item => match(`${item.name} ${item.category}`)).map(item => <button key={item.id} aria-pressed={templateId === item.id} onClick={() => { setTemplateId(item.id); onFrameChange({ id: `tpl-${item.id}`, name: item.name, hex: item.frameColor, textColor: item.textColor }); onLayoutChange(item.recommendedLayout); }}><span style={{ background: item.frameColor }} />{item.name}</button>)}</div>
+              <div className={styles.themes}>{EVENT_TEMPLATES.filter(item => match(`${item.name} ${item.category}`)).map(item => {
+                const locked = !isLayoutUnlocked(plan, item.recommendedLayout);
+                if (locked) {
+                  return (
+                    <Link key={item.id} href="/pricing" className={styles.themeLocked} aria-label={`${item.name} theme — upgrade to unlock`} title={`${item.name} · Upgrade to Creator to unlock`}>
+                      <span style={{ background: item.frameColor }} />{item.name}
+                      <Lock size={12} aria-hidden="true" />
+                    </Link>
+                  );
+                }
+                return <button key={item.id} aria-pressed={templateId === item.id} onClick={() => { setTemplateId(item.id); onFrameChange({ id: `tpl-${item.id}`, name: item.name, hex: item.frameColor, textColor: item.textColor }); onLayoutChange(item.recommendedLayout); }}><span style={{ background: item.frameColor }} />{item.name}</button>;
+              })}</div>
+              <p className={styles.hint}><Crown size={12} aria-hidden="true" /> Locked filters, layouts, and themes unlock with <Link href="/pricing">Creator or an Event Pass</Link>.</p>
             </div>
           )}
         </fieldset>

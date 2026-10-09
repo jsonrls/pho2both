@@ -19,6 +19,7 @@ import { ScanQrModal } from "@/components/ScanQrModal";
 import confetti from "canvas-confetti";
 import { useAuth } from "@/lib/authContext";
 import { drawWatermark } from "@/lib/watermark";
+import { shouldWatermark } from "@/lib/planAccess";
 
 interface SinglePhotoStudioProps {
   shot: CapturedShot;
@@ -141,8 +142,8 @@ export function SinglePhotoStudio({ shot, onBack }: SinglePhotoStudioProps) {
     ctx.letterSpacing = "2px";
     ctx.fillText(subCaption.toUpperCase(), width / 2, subCaptionY * scale);
 
-    // Apply watermark for unauthenticated guest users
-    drawWatermark(ctx, width, height, scale, !user);
+    // Apply watermark unless the visitor is on a paid plan (free & guest are watermarked)
+    drawWatermark(ctx, width, height, scale, shouldWatermark(user?.plan));
 
     return canvas.toDataURL("image/png");
   };

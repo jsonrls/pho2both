@@ -23,6 +23,12 @@ import { Dialog } from "./Dialog";
 import { AccountForm } from "./AccountForm";
 import { useAuth } from "@/lib/authContext";
 import { drawWatermark } from "@/lib/watermark";
+import {
+  canCustomizeCaptions,
+  canDownloadRawOriginals,
+  isLayoutUnlocked,
+  shouldWatermark,
+} from "@/lib/planAccess";
 import { ScanQrModal } from "@/components/ScanQrModal";
 import confetti from "canvas-confetti";
 import {
@@ -135,8 +141,8 @@ export function StripCustomizer({
 }: StripCustomizerProps) {
   const { user, status, notice, generation, isCurrent, refresh, logout } = useAuth();
   const isGuest = !Boolean(user);
-  const isPaid = user?.plan === "creator_monthly" || user?.plan === "creator_yearly" || user?.plan === "event";
-  const FREE_LAYOUT_IDS = useMemo(() => new Set<string>(["strip-4", "strip-3", "strip-2", "grid-2x2"]), []);
+  const plan = user?.plan ?? null;
+  const isPaid = canCustomizeCaptions(plan);
   const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false);
   const [authAnnouncement, setAuthAnnouncement] = useState('');
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
@@ -196,12 +202,21 @@ export function StripCustomizer({
   };
 
   const handleDownloadAllPhotos = () => {
-    if (isGuest) {
-      openAuthDialog();
+    // Raw originals are a paid feature; guests sign in, free members upgrade.
+    if (!canDownloadRawOriginals(user?.plan)) {
+      if (isGuest) {
+        openAuthDialog();
+      } else {
+        setUpgradeModalFeature({
+          title: "Raw Photo Originals",
+          description: "Upgrade to Creator or grab an Event Pass to download all of your original, full-resolution shots.",
+        });
+        setUpgradeModalOpen(true);
+      }
       return;
     }
 
-    // Authenticated member: download all original shots
+    // Paid member: download all original shots
     shots.forEach((shot, i) => {
       setTimeout(() => {
         if (!isCurrent(generation)) return;
@@ -786,8 +801,8 @@ export function StripCustomizer({
       ctx.fillText(footerText.toUpperCase(), width / 2, height - 36 * scale);
     }
 
-    // Guardrail: Apply watermark and expiry notice for unauthenticated guest users
-    drawWatermark(ctx, width, height, scale, isGuest);
+    // Guardrail: watermark unless the visitor is on a paid plan (free & guest are watermarked)
+    drawWatermark(ctx, width, height, scale, shouldWatermark(user?.plan));
 
     return canvas.toDataURL("image/png");
   };
@@ -1032,7 +1047,7 @@ export function StripCustomizer({
               <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
                 {filteredLayouts.map((l) => {
                   const isSelected = layout === l.id;
-                  const isLocked = !isPaid && !FREE_LAYOUT_IDS.has(l.id);
+                  const isLocked = !isLayoutUnlocked(plan, l.id);
                   return (
                     <button
                       key={l.id}
@@ -1221,10 +1236,30 @@ export function StripCustomizer({
                 type="text"
                 aria-label="Header Caption"
                 value={headerText}
-                onChange={(e) => setHeaderText(e.target.value)}
+                onChange={(e) => {
+                  if (!isPaid) {
+                    setUpgradeModalFeature({
+                      title: "Custom Header Caption",
+                      description: "Upgrade to Creator or get an Event Pass to write your own custom header captions.",
+                    });
+                    setUpgradeModalOpen(true);
+                    return;
+                  }
+                  setHeaderText(e.target.value);
+                }}
+                readOnly={!isPaid}
                 maxLength={30}
-                className="w-full bg-white border border-[#ddd6c8] rounded-lg px-3 py-2 text-xs text-[#29251f] placeholder:text-[#655f55] focus:outline-none focus:border-[#29251f] focus:ring-1 focus:ring-[#29251f]"
-                placeholder="e.g. The Good Times Club"
+                className={`w-full bg-white border border-[#ddd6c8] rounded-lg px-3 py-2 text-xs text-[#29251f] placeholder:text-[#655f55] focus:outline-none focus:border-[#29251f] focus:ring-1 focus:ring-[#29251f] ${!isPaid ? "cursor-pointer bg-[#faf8f5]" : ""}`}
+                placeholder={!isPaid ? "Creator to customize" : "e.g. The Good Times Club"}
+                onClick={() => {
+                  if (!isPaid) {
+                    setUpgradeModalFeature({
+                      title: "Custom Header Caption",
+                      description: "Upgrade to Creator or get an Event Pass to write your own custom header captions.",
+                    });
+                    setUpgradeModalOpen(true);
+                  }
+                }}
               />
             </div>
             <div>
@@ -1403,14 +1438,14 @@ export function StripCustomizer({
           >
             <Images className="w-3.5 h-3.5 text-[#29251f]" />
             <span>Download Raw Photos ({shots.length})</span>
-            {isGuest ? (
+            {isPaid ? (
+              <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-emerald-800 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                ⭐ Unlocked
+              </span>
+            ) : (
               <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-[#8b3d2f] font-semibold bg-[#f5ede4] px-1.5 py-0.5 rounded border border-[#e4d5c3]">
                 <Lock className="w-3 h-3 text-[#d94c35]" />
                 Pro Only
-              </span>
-            ) : (
-              <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-emerald-800 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                ⭐ Unlocked
               </span>
             )}
           </button>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { Analytics } from "@vercel/analytics/next";
 import { ClientProviders } from "@/components/ClientProviders";
 import "./globals.css";
 
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <a className="skip-link" href="#main-content">Skip to content</a>
         <ClientProviders>{children}</ClientProviders>
+        <Analytics />
       </body>
     </html>
   );

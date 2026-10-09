@@ -17,6 +17,7 @@ import { CapturedShot } from "@/types/booth";
 import { createBoothSession, recordCapturedPhoto, persistPhotoStrip } from "@/lib/api";
 import { useAuth } from "@/lib/authContext";
 import { drawWatermark } from "@/lib/watermark";
+import { shouldWatermark } from "@/lib/planAccess";
 import { ScanQrModal } from "@/components/ScanQrModal";
 import confetti from "canvas-confetti";
 
@@ -138,7 +139,7 @@ export function AiEffectStudio({ shot, onBack }: AiEffectStudioProps) {
     ctx.letterSpacing = "2px";
     ctx.fillText("PHO2BOOTH • CREATIVE EFFECTS", width / 2, height - 50 * scale);
 
-    drawWatermark(ctx, width, height, scale, !user);
+    drawWatermark(ctx, width, height, scale, shouldWatermark(user?.plan));
     return canvas.toDataURL("image/png");
   };
 
