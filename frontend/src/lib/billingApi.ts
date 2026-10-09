@@ -52,14 +52,29 @@ export async function fetchPlans(): Promise<{ plans: PlanItem[]; plansById: Reco
   return response.json();
 }
 
-export async function fetchBillingStatus(): Promise<BillingStatusResponse> {
-  const response = await fetchWithFallback("/api/billing/status", {
+export async function fetchBillingStatus(sync: boolean = false): Promise<BillingStatusResponse> {
+  const url = sync ? "/api/billing/status?sync=1" : "/api/billing/status";
+  const response = await fetchWithFallback(url, {
     method: "GET",
     credentials: "same-origin",
     cache: "no-store",
   });
   if (!response.ok) {
     throw new ApiError("Failed to fetch billing status.", response.status, "BILLING_STATUS_FAILED");
+  }
+  return response.json();
+}
+
+export async function syncSubscription(checkoutId?: string): Promise<BillingStatusResponse> {
+  const response = await fetchWithFallback("/api/billing/sync", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(checkoutId ? { checkoutId } : {}),
+  });
+  if (!response.ok) {
+    return fetchBillingStatus();
   }
   return response.json();
 }

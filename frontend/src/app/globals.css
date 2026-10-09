@@ -479,6 +479,122 @@ select optgroup {
 .account-card p { color: var(--muted-foreground); margin-top: 10px; font-size: 13px; }
 .account-card .button { width: 100%; margin-top: 12px; }
 
+.account-sub-card {
+  margin-top: 20px;
+  margin-bottom: 14px;
+  text-align: left;
+  background: var(--surface, #fffdf7);
+  border: 1.5px solid var(--border, #ded8cc);
+  border-radius: var(--radius, 14px);
+  padding: 18px;
+  box-shadow: 0 4px 16px -4px rgba(41, 37, 31, 0.08);
+}
+.account-sub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.account-sub-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink, #29251f);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.account-sub-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.account-sub-badge-active {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+.account-sub-badge-trial {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+.account-sub-badge-event {
+  background: #f5f3ff;
+  color: #5b21b6;
+  border: 1px solid #ddd6fe;
+}
+.account-sub-badge-free {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+.account-sub-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(222, 216, 204, 0.6);
+}
+.account-sub-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.account-sub-label {
+  color: var(--muted-foreground, #655f55);
+}
+.account-sub-value {
+  font-weight: 600;
+  color: var(--ink, #29251f);
+  text-align: right;
+}
+.account-sub-features {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border, #ded8cc);
+  font-size: 12px;
+  color: var(--muted-foreground, #655f55);
+}
+.account-sub-feature-title {
+  font-weight: 700;
+  color: var(--ink, #29251f);
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.account-sub-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  color: var(--ink, #29251f);
+  font-weight: 500;
+}
+.account-success-banner {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  border-radius: var(--radius, 10px);
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.45;
+}
+
 .lookup-main { display: grid; grid-template-columns: 1.05fr 1fr; gap: 90px; align-items: center; padding-block: 85px; min-height: calc(100vh - 88px); }
 .lookup-story h1 { font-size: clamp(42px, 5.8vw, 70px); max-width: 500px; margin: 20px 0; }
 .lookup-story p { color: var(--muted-foreground); font-size: 14px; max-width: 375px; }

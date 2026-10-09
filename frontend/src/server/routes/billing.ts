@@ -9,6 +9,7 @@ import {
   getUserPlan,
   logBillingFailure,
   syncWebhookEvent,
+  syncUserSubscriptionFromPolar,
   verifyWebhook,
   type PlanId,
 } from "../services/polar";
@@ -23,8 +24,29 @@ export const getPublicPlans: RequestHandler = (_req, res) => {
 };
 
 // 2. GET /api/billing/status (Authenticated)
-billingRouter.get("/status", requireUser, asyncHandler(async (_req, res) => {
+billingRouter.get("/status", requireUser, asyncHandler(async (req, res) => {
   const user = getIdentity(res).user!;
+  if (req.query.sync === "1" || req.query.sync === "true") {
+    await syncUserSubscriptionFromPolar(user.id);
+  }
+  const planInfo = await getUserPlan(user.id);
+  res.json({
+    user: { id: user.id, email: user.email, name: user.name },
+    ...planInfo,
+  });
+}));
+
+// 2b. POST /api/billing/sync (Authenticated, manual or checkout return trigger)
+const syncSchema = z.object({
+  checkoutId: z.string().max(128).optional(),
+}).strict();
+
+billingRouter.post("/sync", requireUser, rateLimit(30, 60_000), asyncHandler(async (req, res) => {
+  if (rejectInvalidSessionForWrite(res)) return;
+  const user = getIdentity(res).user!;
+  const parsed = syncSchema.safeParse(req.body || {});
+  const checkoutId = parsed.success ? parsed.data.checkoutId : undefined;
+  await syncUserSubscriptionFromPolar(user.id, checkoutId);
   const planInfo = await getUserPlan(user.id);
   res.json({
     user: { id: user.id, email: user.email, name: user.name },

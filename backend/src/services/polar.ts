@@ -282,14 +282,43 @@ export async function syncWebhookEvent(event: { type: string; data: any }): Prom
     };
 
     if (db) {
-      await db.insert(schema.subscriptions).values(subRecord);
+      if (subRecord.polarOrderId) {
+        const existing = await db.select().from(schema.subscriptions)
+          .where(eq(schema.subscriptions.polarOrderId, subRecord.polarOrderId))
+          .limit(1);
+        if (existing.length > 0) {
+          await db.update(schema.subscriptions).set({
+            plan,
+            status: "active",
+            currentPeriodEnd: periodEnd,
+            updatedAt: now,
+          }).where(eq(schema.subscriptions.id, existing[0].id));
+          subRecord.id = existing[0].id;
+        } else {
+          await db.insert(schema.subscriptions).values(subRecord);
+        }
+      } else {
+        await db.insert(schema.subscriptions).values(subRecord);
+      }
       await db.update(schema.users).set({
         plan,
         polarCustomerId: subRecord.polarCustomerId,
         updatedAt: now,
       }).where(eq(schema.users.id, userId));
     } else {
-      memorySubscriptions.set(subRecord.id, subRecord);
+      let found = false;
+      for (const [id, s] of memorySubscriptions.entries()) {
+        if (s.polarOrderId === subRecord.polarOrderId) {
+          s.plan = plan;
+          s.status = "active";
+          s.currentPeriodEnd = periodEnd;
+          s.updatedAt = now;
+          found = true;
+          subRecord.id = id;
+          break;
+        }
+      }
+      if (!found) memorySubscriptions.set(subRecord.id, subRecord);
       const user = memoryUsers.get(userId);
       if (user) {
         user.plan = plan;
@@ -331,14 +360,45 @@ export async function syncWebhookEvent(event: { type: string; data: any }): Prom
     };
 
     if (db) {
-      await db.insert(schema.subscriptions).values(subRecord);
+      if (subRecord.polarSubscriptionId) {
+        const existing = await db.select().from(schema.subscriptions)
+          .where(eq(schema.subscriptions.polarSubscriptionId, subRecord.polarSubscriptionId))
+          .limit(1);
+        if (existing.length > 0) {
+          await db.update(schema.subscriptions).set({
+            plan,
+            status,
+            currentPeriodEnd,
+            cancelAtPeriodEnd,
+            updatedAt: now,
+          }).where(eq(schema.subscriptions.id, existing[0].id));
+          subRecord.id = existing[0].id;
+        } else {
+          await db.insert(schema.subscriptions).values(subRecord);
+        }
+      } else {
+        await db.insert(schema.subscriptions).values(subRecord);
+      }
       await db.update(schema.users).set({
         plan: effectivePlan,
         polarCustomerId: subRecord.polarCustomerId,
         updatedAt: now,
       }).where(eq(schema.users.id, userId));
     } else {
-      memorySubscriptions.set(subRecord.id, subRecord);
+      let found = false;
+      for (const [id, s] of memorySubscriptions.entries()) {
+        if (s.polarSubscriptionId === subRecord.polarSubscriptionId) {
+          s.plan = plan;
+          s.status = status;
+          s.currentPeriodEnd = currentPeriodEnd;
+          s.cancelAtPeriodEnd = cancelAtPeriodEnd;
+          s.updatedAt = now;
+          found = true;
+          subRecord.id = id;
+          break;
+        }
+      }
+      if (!found) memorySubscriptions.set(subRecord.id, subRecord);
       const user = memoryUsers.get(userId);
       if (user) {
         user.plan = effectivePlan;
@@ -376,18 +436,246 @@ export async function syncWebhookEvent(event: { type: string; data: any }): Prom
     const customerId = data.customerId;
     const metadata = data.metadata || {};
     const userId = metadata.userId || data.customerExternalId || data.customer?.externalId;
+    const subId = data.id;
     if (userId) {
       if (db) {
         await db.update(schema.users).set({ plan: "free", updatedAt: now }).where(eq(schema.users.id, userId));
+        if (subId) {
+          await db.update(schema.subscriptions).set({ status: "revoked", updatedAt: now }).where(eq(schema.subscriptions.polarSubscriptionId, subId));
+        } else {
+          await db.update(schema.subscriptions).set({ status: "revoked", updatedAt: now }).where(eq(schema.subscriptions.userId, userId));
+        }
       } else {
         const user = memoryUsers.get(userId);
         if (user) { user.plan = "free"; user.updatedAt = now; }
+        for (const sub of memorySubscriptions.values()) {
+          if (sub.userId === userId || (subId && sub.polarSubscriptionId === subId)) {
+            sub.status = "revoked";
+            sub.updatedAt = now;
+          }
+        }
       }
     }
     return { processed: true, plan: "free" };
   }
 
   return { processed: false };
+}
+
+export async function syncUserSubscriptionFromPolar(userId: string, checkoutId?: string): Promise<{
+  synced: boolean;
+  plan: PlanId;
+  subscription?: Subscription | null;
+}> {
+  if (!userId) return { synced: false, plan: "free", subscription: null };
+  if (process.env.NODE_ENV === "test") return { synced: false, plan: "free", subscription: null };
+
+  const token = process.env.POLAR_ACCESS_TOKEN?.trim();
+  if (!token) return { synced: false, plan: "free", subscription: null };
+
+  let client: ReturnType<typeof getPolarClient>;
+  try {
+    client = getPolarClient();
+  } catch {
+    return { synced: false, plan: "free", subscription: null };
+  }
+
+  const db = getDb();
+  let polarCustomerId: string | null = null;
+
+  if (db) {
+    const userRows = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+    if (userRows[0]) {
+      polarCustomerId = userRows[0].polarCustomerId;
+    }
+  } else {
+    const memUser = memoryUsers.get(userId);
+    if (memUser) {
+      polarCustomerId = memUser.polarCustomerId || null;
+    }
+  }
+
+  if (checkoutId) {
+    try {
+      const checkout = await client.checkouts.get(checkoutId);
+      if (checkout && checkout.customer_id) {
+        polarCustomerId = checkout.customer_id;
+      }
+    } catch (err) {
+      logBillingFailure("sync_checkout", err);
+    }
+  }
+
+  let polarSubs: any[] = [];
+  try {
+    const subRes = await client.subscriptions.list({ external_customer_id: userId, limit: 10 });
+    polarSubs = (subRes && Array.isArray(subRes.items)) ? subRes.items : [];
+    if (polarSubs.length === 0 && polarCustomerId) {
+      const subRes2 = await client.subscriptions.list({ customer_id: polarCustomerId, limit: 10 });
+      polarSubs = (subRes2 && Array.isArray(subRes2.items)) ? subRes2.items : [];
+    }
+  } catch (err) {
+    logBillingFailure("sync_subscriptions", err);
+  }
+
+  let polarOrders: any[] = [];
+  try {
+    const orderRes = await client.orders.list({ external_customer_id: userId, limit: 10 });
+    polarOrders = (orderRes && Array.isArray(orderRes.items)) ? orderRes.items : [];
+    if (polarOrders.length === 0 && polarCustomerId) {
+      const orderRes2 = await client.orders.list({ customer_id: polarCustomerId, limit: 10 });
+      polarOrders = (orderRes2 && Array.isArray(orderRes2.items)) ? orderRes2.items : [];
+    }
+  } catch (err) {
+    logBillingFailure("sync_orders", err);
+  }
+
+  const now = new Date();
+
+  const activeSub = polarSubs.find((s: any) => s.status === "active" || s.status === "trialing") ||
+    polarSubs.find((s: any) => s.status === "canceled" && s.current_period_end && new Date(s.current_period_end).getTime() > now.getTime()) ||
+    polarSubs[0];
+
+  const eventPassOrder = polarOrders.find((o: any) => {
+    const pId = o.product_id || o.productId || o.items?.[0]?.product_id || o.items?.[0]?.productId;
+    const plan = (o.metadata?.plan as PlanId) || (pId ? getPlanForProductId(pId) : null);
+    if (plan === "event") {
+      const createdAt = new Date(o.created_at || o.createdAt || now);
+      return (now.getTime() - createdAt.getTime()) <= 72 * 60 * 60 * 1000;
+    }
+    return false;
+  });
+
+  if (activeSub) {
+    const subPlan = (activeSub.metadata?.plan as PlanId) || (activeSub.product_id ? getPlanForProductId(activeSub.product_id) : null) || "creator_yearly";
+    const isActive = activeSub.status === "active" || activeSub.status === "trialing";
+    const isCanceledStillActive = activeSub.status === "canceled" && activeSub.current_period_end && new Date(activeSub.current_period_end).getTime() > now.getTime();
+    const effectivePlan: PlanId = (isActive || isCanceledStillActive) ? subPlan : "free";
+
+    const customerId = activeSub.customer_id || activeSub.customer?.id || polarCustomerId || `cust_${userId}`;
+    const periodEnd = activeSub.current_period_end ? new Date(activeSub.current_period_end) : null;
+    const cancelAtPeriodEnd = Boolean(activeSub.cancel_at_period_end);
+
+    const subRecord: Subscription = {
+      id: randomUUID(),
+      userId,
+      polarCustomerId: customerId,
+      polarSubscriptionId: activeSub.id,
+      polarOrderId: activeSub.order_id || null,
+      productId: activeSub.product_id || getProductIdForPlan(subPlan),
+      plan: subPlan,
+      status: activeSub.status,
+      currentPeriodEnd: periodEnd,
+      cancelAtPeriodEnd,
+      createdAt: activeSub.created_at ? new Date(activeSub.created_at) : now,
+      updatedAt: now,
+    };
+
+    if (db) {
+      const existing = await db.select().from(schema.subscriptions)
+        .where(eq(schema.subscriptions.polarSubscriptionId, activeSub.id))
+        .limit(1);
+
+      if (existing.length > 0) {
+        await db.update(schema.subscriptions).set({
+          status: activeSub.status,
+          plan: subPlan,
+          currentPeriodEnd: periodEnd,
+          cancelAtPeriodEnd,
+          updatedAt: now,
+        }).where(eq(schema.subscriptions.id, existing[0].id));
+        subRecord.id = existing[0].id;
+      } else {
+        await db.insert(schema.subscriptions).values(subRecord);
+      }
+
+      await db.update(schema.users).set({
+        plan: effectivePlan,
+        polarCustomerId: customerId,
+        updatedAt: now,
+      }).where(eq(schema.users.id, userId));
+    } else {
+      let found = false;
+      for (const [id, s] of memorySubscriptions.entries()) {
+        if (s.polarSubscriptionId === activeSub.id) {
+          s.status = activeSub.status;
+          s.plan = subPlan;
+          s.currentPeriodEnd = periodEnd;
+          s.cancelAtPeriodEnd = cancelAtPeriodEnd;
+          s.updatedAt = now;
+          found = true;
+          subRecord.id = id;
+          break;
+        }
+      }
+      if (!found) {
+        memorySubscriptions.set(subRecord.id, subRecord);
+      }
+      const memUser = memoryUsers.get(userId);
+      if (memUser) {
+        memUser.plan = effectivePlan;
+        memUser.polarCustomerId = customerId;
+        memUser.updatedAt = now;
+      }
+    }
+
+    return { synced: true, plan: effectivePlan, subscription: subRecord };
+  } else if (eventPassOrder) {
+    const orderCreatedAt = new Date(eventPassOrder.created_at || eventPassOrder.createdAt || now);
+    const periodEnd = new Date(orderCreatedAt.getTime() + 72 * 60 * 60 * 1000);
+    const customerId = eventPassOrder.customer_id || polarCustomerId || `cust_${userId}`;
+    const pId = eventPassOrder.product_id || eventPassOrder.productId || getProductIdForPlan("event");
+
+    const subRecord: Subscription = {
+      id: randomUUID(),
+      userId,
+      polarCustomerId: customerId,
+      polarSubscriptionId: null,
+      polarOrderId: eventPassOrder.id,
+      productId: pId,
+      plan: "event",
+      status: "active",
+      currentPeriodEnd: periodEnd,
+      cancelAtPeriodEnd: false,
+      createdAt: orderCreatedAt,
+      updatedAt: now,
+    };
+
+    if (db) {
+      const existing = await db.select().from(schema.subscriptions)
+        .where(eq(schema.subscriptions.polarOrderId, eventPassOrder.id))
+        .limit(1);
+
+      if (existing.length > 0) {
+        await db.update(schema.subscriptions).set({
+          status: "active",
+          currentPeriodEnd: periodEnd,
+          updatedAt: now,
+        }).where(eq(schema.subscriptions.id, existing[0].id));
+        subRecord.id = existing[0].id;
+      } else {
+        await db.insert(schema.subscriptions).values(subRecord);
+      }
+
+      await db.update(schema.users).set({
+        plan: "event",
+        polarCustomerId: customerId,
+        updatedAt: now,
+      }).where(eq(schema.users.id, userId));
+    } else {
+      memorySubscriptions.set(subRecord.id, subRecord);
+      const memUser = memoryUsers.get(userId);
+      if (memUser) {
+        memUser.plan = "event";
+        memUser.polarCustomerId = customerId;
+        memUser.updatedAt = now;
+      }
+    }
+
+    return { synced: true, plan: "event", subscription: subRecord };
+  }
+
+  return { synced: false, plan: "free", subscription: null };
 }
 
 export async function getUserPlan(userId: string): Promise<{
@@ -440,19 +728,58 @@ export async function getUserPlan(userId: string): Promise<{
     };
   }
 
+  if ((!activeSub || user.plan === "free") && process.env.NODE_ENV !== "test" && process.env.POLAR_ACCESS_TOKEN?.trim()) {
+    try {
+      const syncResult = await syncUserSubscriptionFromPolar(userId);
+      if (syncResult.synced && syncResult.subscription) {
+        activeSub = syncResult.subscription;
+        user.plan = syncResult.plan;
+      }
+    } catch {
+      // Proceed with local database values on network issues
+    }
+  }
+
   let plan: PlanId = (user.plan as PlanId) || "free";
 
   // Check event pass expiry (72 hours)
   if (plan === "event" && activeSub?.currentPeriodEnd && activeSub.currentPeriodEnd.getTime() <= Date.now()) {
     plan = "free";
+    if (db) {
+      await db.update(schema.users).set({ plan: "free", updatedAt: new Date() }).where(eq(schema.users.id, userId));
+    } else {
+      user.plan = "free";
+    }
   }
 
   // Check subscription status
   if ((plan === "creator_monthly" || plan === "creator_yearly") && activeSub) {
     if (activeSub.status === "revoked" || activeSub.status === "unpaid") {
       plan = "free";
+      if (db) {
+        await db.update(schema.users).set({ plan: "free", updatedAt: new Date() }).where(eq(schema.users.id, userId));
+      } else {
+        user.plan = "free";
+      }
     } else if (activeSub.status === "canceled" && activeSub.currentPeriodEnd && activeSub.currentPeriodEnd.getTime() <= Date.now()) {
       plan = "free";
+      if (db) {
+        await db.update(schema.users).set({ plan: "free", updatedAt: new Date() }).where(eq(schema.users.id, userId));
+      } else {
+        user.plan = "free";
+      }
+    }
+  }
+
+  // Harmonize: If user has an active/trialing plan, ensure user.plan matches
+  if (user.plan !== "free" && activeSub && (activeSub.status === "active" || activeSub.status === "trialing")) {
+    if (plan !== activeSub.plan) {
+      plan = activeSub.plan as PlanId;
+      if (db) {
+        await db.update(schema.users).set({ plan, updatedAt: new Date() }).where(eq(schema.users.id, userId));
+      } else {
+        user.plan = plan;
+      }
     }
   }
 

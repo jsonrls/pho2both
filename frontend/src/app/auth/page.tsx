@@ -1,15 +1,26 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Loader2, LogOut, QrCode, Sparkles, ExternalLink } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2, LogOut, QrCode, Sparkles, ExternalLink, RefreshCw, Check } from "lucide-react";
 import { AccountForm } from "@/components/AccountForm";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SampleStrip } from "@/components/PhotoArt";
 import { changePassword, deleteAccount, safeAuthReturn } from "@/lib/authApi";
-import { createCustomerPortal } from "@/lib/billingApi";
+import { createCustomerPortal, fetchBillingStatus, syncSubscription, type BillingStatusResponse } from "@/lib/billingApi";
 import { useAuth } from "@/lib/authContext";
+
+function formatDate(dateStr?: string | null) {
+  if (!dateStr) return null;
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  } catch {
+    return null;
+  }
+}
 
 function AccountSettings() {
   const { refresh } = useAuth();
@@ -171,58 +182,218 @@ function AuthContent() {
   const guestUrl = redirectUrl.startsWith("/download") ? redirectUrl : "/?booth=1";
   const { user, logout, status, notice, refresh } = useAuth();
 
+  const [billing, setBilling] = useState<BillingStatusResponse | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const isSuccess = searchParams.get("checkout") === "success";
+    if (isSuccess) setCheckoutSuccess(true);
+
+    async function loadBilling() {
+      if (status !== "authenticated" || !user) return;
+      try {
+        if (isSuccess) {
+          setSyncing(true);
+          const synced = await syncSubscription();
+          if (mounted) {
+            setBilling(synced);
+            await refresh();
+          }
+        } else {
+          const data = await fetchBillingStatus();
+          if (mounted) setBilling(data);
+        }
+      } catch (err) {
+        console.warn("Could not fetch billing details:", err);
+      } finally {
+        if (mounted) setSyncing(false);
+      }
+    }
+    loadBilling();
+    return () => { mounted = false; };
+  }, [status, user, searchParams, refresh]);
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    try {
+      const data = await syncSubscription();
+      setBilling(data);
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleOpenPortal = async () => {
+    setPortalLoading(true);
+    try {
+      const portal = await createCustomerPortal();
+      if (portal.portalUrl) window.location.href = portal.portalUrl;
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not open billing portal");
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
   if (!formOpened && (status === "loading" || status === "signing-out" || status === "unavailable" || status === "logout-failed")) return <><SiteHeader compact /><main id="main-content" className="account-main page-container"><div className="account-card"><h1>Your account</h1><p role="status">{status === "loading" ? "Checking your session…" : status === "signing-out" ? "Signing out…" : status === "logout-failed" ? notice : "We couldn’t check your session. You can keep creating and download a guest PNG."}</p>{status === "unavailable" && <button className="button button-primary" onClick={() => void refresh()}>Try again</button>}{status === "logout-failed" && <button className="button button-primary" onClick={() => void logout()}>Retry sign-out</button>}<Link className="button button-secondary" href={guestUrl}>Continue as a guest</Link></div></main></>;
 
-
   if (user) {
+    const activePlan = billing?.plan || user.plan || "free";
+    const sub = billing?.subscription;
+    const isPaid = activePlan === "creator_yearly" || activePlan === "creator_monthly" || activePlan === "event";
+    const isTrial = sub?.status === "trialing";
+    const isCanceled = Boolean(sub?.cancelAtPeriodEnd);
+    const formattedPeriodEnd = formatDate(sub?.currentPeriodEnd);
+
+    const planDisplayName = activePlan === "creator_yearly"
+      ? "Creator Yearly"
+      : activePlan === "creator_monthly"
+        ? "Creator Monthly"
+        : activePlan === "event"
+          ? "Event Pass"
+          : "Free Member";
+
+    const badgeLabel = isTrial
+      ? "Trial Active • 7 Days Free"
+      : isCanceled
+        ? `Cancels ${formattedPeriodEnd || "Soon"}`
+        : isPaid
+          ? "Active Member"
+          : "Free Tier";
+
+    const badgeClass = isTrial
+      ? "account-sub-badge account-sub-badge-trial"
+      : activePlan === "event"
+        ? "account-sub-badge account-sub-badge-event"
+        : isPaid
+          ? "account-sub-badge account-sub-badge-active"
+          : "account-sub-badge account-sub-badge-free";
+
     return (
       <>
         <SiteHeader compact />
         <main id="main-content" className="account-main page-container">
           <div className="account-card">
+            {checkoutSuccess && (
+              <div className="account-success-banner" role="status">
+                <CheckCircle2 size={18} style={{ color: "#059669", flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <strong>Subscription activated!</strong>
+                  <div style={{ fontSize: 12, marginTop: 2 }}>
+                    Your {planDisplayName} plan is stored in the database and active across all photo booth formats and downloads.
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="account-avatar" aria-hidden="true">
               {(user.name || "").trim().slice(0, 1).toUpperCase() || "♡"}
             </div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200" style={{ margin: "4px auto 8px" }}>
-              {user.plan === "creator_yearly"
-                ? "⭐ Creator Yearly Plan"
-                : user.plan === "creator_monthly"
-                  ? "⭐ Creator Monthly Plan"
-                  : user.plan === "event"
-                    ? "⭐ Event Pass Active"
-                    : "Free Member Account"}
+
+            <div className={badgeClass} style={{ margin: "2px auto 8px" }}>
+              {isPaid ? "⭐ " : ""}{planDisplayName}
             </div>
-            <h1>Hi, {(user.name || "friend").split(" ")[0]}.</h1>
-            <p>{user.email}</p>
-            <p>
-              {user.plan === "creator_yearly" || user.plan === "creator_monthly"
-                ? "You’re on the Creator Plan. Permanent cloud library, clean unbranded exports, all 23+ layouts, and raw photo downloads are active."
-                : user.plan === "event"
-                  ? "Your 72-hour Event Pass is active. Custom event branding, all 23+ layouts, and 1-year guest link retention are active."
-                  : "You’re signed in with a Free Member account. 4 classic layouts, 10 vintage filters, and 7-day cloud sharing are active."}
-            </p>
-            {(!user.plan || user.plan === "free") && (
-              <Link className="button button-primary" href="/pricing" style={{ margin: "4px auto 8px" }}>
+
+            <h1 style={{ marginTop: 4 }}>Hi, {(user.name || "friend").split(" ")[0]}.</h1>
+            <p style={{ marginTop: 2, marginBottom: 12 }}>{user.email}</p>
+
+            {/* Dedicated Subscription Details Card */}
+            <div className="account-sub-card">
+              <div className="account-sub-header">
+                <h3 className="account-sub-title">
+                  <Sparkles size={16} color="var(--light-red, #ea6c58)" /> Subscription Details
+                </h3>
+                <span className={badgeClass}>
+                  {badgeLabel}
+                </span>
+              </div>
+
+              <div className="account-sub-row">
+                <span className="account-sub-label">Plan Type</span>
+                <span className="account-sub-value">
+                  {planDisplayName} {activePlan === "creator_yearly" ? "($59/yr)" : activePlan === "creator_monthly" ? "($6/mo)" : activePlan === "event" ? "($19 one-time)" : "($0)"}
+                </span>
+              </div>
+
+              <div className="account-sub-row">
+                <span className="account-sub-label">Account Status</span>
+                <span className="account-sub-value" style={{ textTransform: "capitalize" }}>
+                  {isTrial ? "Trialing (Full Access)" : sub?.status || (isPaid ? "Active" : "Active Free Member")}
+                </span>
+              </div>
+
+              {formattedPeriodEnd && (
+                <div className="account-sub-row">
+                  <span className="account-sub-label">
+                    {isTrial ? "Trial Ends" : isCanceled ? "Access Until" : activePlan === "event" ? "Pass Valid Until" : "Next Renewal"}
+                  </span>
+                  <span className="account-sub-value">
+                    {formattedPeriodEnd}
+                  </span>
+                </div>
+              )}
+
+              <div className="account-sub-features">
+                <div className="account-sub-feature-title">Your Plan Features</div>
+                <div className="account-sub-feature-item">
+                  <Check size={14} color="#059669" />
+                  <span>{isPaid ? "Clean, unbranded exports (no watermark)" : "Classic watermarked keepsake downloads"}</span>
+                </div>
+                <div className="account-sub-feature-item">
+                  <Check size={14} color="#059669" />
+                  <span>{isPaid ? "Permanent cloud links & library" : "7-day cloud sharing retention"}</span>
+                </div>
+                <div className="account-sub-feature-item">
+                  <Check size={14} color="#059669" />
+                  <span>{isPaid ? "All 23+ vintage, grid & ticket layouts" : "4 classic strip & grid layouts"}</span>
+                </div>
+                <div className="account-sub-feature-item">
+                  <Check size={14} color="#059669" />
+                  <span>{isPaid ? "All 40+ retro filters & adjustments" : "10 vintage & color filters"}</span>
+                </div>
+                {isPaid && (
+                  <div className="account-sub-feature-item">
+                    <Check size={14} color="#059669" />
+                    <span>Download raw photo originals</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {!isPaid ? (
+              <Link className="button button-primary" href="/pricing">
                 <Sparkles size={16} /> Upgrade to Creator (7-Day Trial)
               </Link>
+            ) : (
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  style={{ flex: 1 }}
+                  onClick={handleOpenPortal}
+                  disabled={portalLoading}
+                >
+                  {portalLoading ? <Loader2 size={14} className="animate-spin" /> : <>Manage Billing <ExternalLink size={13} /></>}
+                </button>
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  style={{ width: "auto", padding: "0 12px" }}
+                  title="Refresh subscription status"
+                  onClick={handleManualSync}
+                  disabled={syncing}
+                >
+                  <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+                </button>
+              </div>
             )}
-            {(user.plan === "creator_yearly" || user.plan === "creator_monthly") && (
-              <button
-                type="button"
-                className="button button-secondary"
-                style={{ margin: "4px auto 8px" }}
-                onClick={async () => {
-                  try {
-                    const portal = await createCustomerPortal();
-                    if (portal.portalUrl) window.location.href = portal.portalUrl;
-                  } catch (err) {
-                    alert(err instanceof Error ? err.message : "Could not open billing portal");
-                  }
-                }}
-              >
-                Manage Billing in Polar Portal <ExternalLink size={14} />
-              </button>
-            )}
+
             <Link className="button button-primary" href="/?booth=1">
               Start a new session
             </Link>

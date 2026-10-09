@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, House, Images, LogOut, QrCode, User, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
+import { usePlan } from "@/lib/usePlan";
 import styles from "./AccountDropdown.module.css";
 
 interface AccountDropdownProps {
@@ -17,6 +18,7 @@ export function AccountDropdown({ onBackHome, className = "" }: AccountDropdownP
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const { user, status, logout } = useAuth();
+  const planInfo = usePlan();
   const pathname = usePathname();
 
   useEffect(() => {
@@ -48,11 +50,14 @@ export function AccountDropdown({ onBackHome, className = "" }: AccountDropdownP
   const libraryHref = status === "guest" ? "/auth?redirect=%2Flibrary" : "/library";
   const signInHref = pathname === "/library" ? "/auth?redirect=%2Flibrary" : "/auth";
 
-  const planLabel = user?.plan === "creator_yearly"
-    ? "⭐ Creator (Yearly)"
-    : user?.plan === "creator_monthly"
-      ? "⭐ Creator (Monthly)"
-      : user?.plan === "event"
+  const effectivePlan = planInfo.plan || user?.plan || "free";
+  const isTrial = planInfo.subscription?.status === "trialing";
+
+  const planLabel = effectivePlan === "creator_yearly"
+    ? (isTrial ? "⭐ Creator Yearly (Trial)" : "⭐ Creator Yearly")
+    : effectivePlan === "creator_monthly"
+      ? "⭐ Creator Monthly"
+      : effectivePlan === "event"
         ? "⭐ Event Pass"
         : isAuthenticated
           ? "Free Member"
