@@ -89,7 +89,7 @@ export async function deleteAccount(): Promise<{ success: boolean; message: stri
 }
 
 export function safeAuthReturn(value: string | null): string {
-  if (value === "/" || value === "/?booth=1" || value === "/download" || value === "/auth" || value === "/library") return value;
+  if (value === "/" || value === "/?booth=1" || value === "/download" || value === "/auth" || value === "/library" || value === "/billing") return value;
   if (value && /^\/download\/(?:[A-Z0-9_-]{4,16}|[A-Z0-9_-]{32})$/.test(value)) return value;
   return "/?booth=1";
 }

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Loader2, LogOut, QrCode, Sparkles, ExternalLink, RefreshCw, Check } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2, LogOut, QrCode, Sparkles, ExternalLink, RefreshCw, Check, CreditCard } from "lucide-react";
 import { AccountForm } from "@/components/AccountForm";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SampleStrip } from "@/components/PhotoArt";
@@ -367,30 +367,40 @@ function AuthContent() {
             </div>
 
             {!isPaid ? (
-              <Link className="button button-primary" href="/pricing">
-                <Sparkles size={16} /> Upgrade to Creator (7-Day Trial)
-              </Link>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", marginTop: 4 }}>
+                <Link className="button button-primary" href="/pricing">
+                  <Sparkles size={16} /> Upgrade to Creator (7-Day Trial)
+                </Link>
+                <Link className="button button-secondary" href="/billing">
+                  <CreditCard size={15} /> View Billing & Plans
+                </Link>
+              </div>
             ) : (
-              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                <button
-                  type="button"
-                  className="button button-secondary"
-                  style={{ flex: 1 }}
-                  onClick={handleOpenPortal}
-                  disabled={portalLoading}
-                >
-                  {portalLoading ? <Loader2 size={14} className="animate-spin" /> : <>Manage Billing <ExternalLink size={13} /></>}
-                </button>
-                <button
-                  type="button"
-                  className="button button-quiet"
-                  style={{ width: "auto", padding: "0 12px" }}
-                  title="Refresh subscription status"
-                  onClick={handleManualSync}
-                  disabled={syncing}
-                >
-                  <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
-                </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", marginTop: 4 }}>
+                <Link className="button button-secondary" href="/billing">
+                  <CreditCard size={15} /> Manage Billing & Invoices
+                </Link>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="button button-quiet"
+                    style={{ flex: 1, fontSize: 13 }}
+                    onClick={handleOpenPortal}
+                    disabled={portalLoading}
+                  >
+                    {portalLoading ? <Loader2 size={13} className="animate-spin" /> : <>Polar Portal <ExternalLink size={12} /></>}
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-quiet"
+                    style={{ width: "auto", padding: "0 12px" }}
+                    title="Refresh subscription status"
+                    onClick={handleManualSync}
+                    disabled={syncing}
+                  >
+                    <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
+                  </button>
+                </div>
               </div>
             )}
 

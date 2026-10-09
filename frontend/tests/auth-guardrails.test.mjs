@@ -19,7 +19,7 @@ const proxySource = (await readFile(new URL("../src/app/api/[...path]/route.ts",
 const proxy = await import(moduleUrl(proxySource));
 
 test("auth return destinations stay within approved public pages", () => {
-  for (const value of ["/", "/?booth=1", "/auth", "/library", "/download", "/download/OLD_CODE", `/download/${"A".repeat(32)}`]) assert.equal(auth.safeAuthReturn(value), value);
+  for (const value of ["/", "/?booth=1", "/auth", "/library", "/download", "/billing", "/download/OLD_CODE", `/download/${"A".repeat(32)}`]) assert.equal(auth.safeAuthReturn(value), value);
   for (const value of [null, "https://hostile.invalid", "//hostile.invalid", "/\\hostile.invalid", "/api/auth/logout", "/download/%2f%2fhostile", "/download/CODE?redirect=bad", "/download/" + "A".repeat(20), "/auth\n", "/library/", "/library?userId=other", "/library#other", "/?booth=2"]) assert.equal(auth.safeAuthReturn(value), "/?booth=1");
 });
 

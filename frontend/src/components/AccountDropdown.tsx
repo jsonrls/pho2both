@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, House, Images, LogOut, QrCode, User, Sparkles } from "lucide-react";
+import { ChevronDown, House, Images, LogOut, QrCode, User, Sparkles, CreditCard } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { usePlan } from "@/lib/usePlan";
 import styles from "./AccountDropdown.module.css";
@@ -202,15 +202,26 @@ export function AccountDropdown({ onBackHome, className = "" }: AccountDropdownP
                 <span>Upgrade to Creator</span>
               </Link>
             ) : (
-              <Link
-                href="/auth"
-                className={styles.menuItem}
-                role="menuitem"
-                onClick={() => setIsOpen(false)}
-              >
-                <User size={16} aria-hidden="true" />
-                <span>Account settings</span>
-              </Link>
+              <>
+                <Link
+                  href="/auth"
+                  className={styles.menuItem}
+                  role="menuitem"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <User size={16} aria-hidden="true" />
+                  <span>Account settings</span>
+                </Link>
+                <Link
+                  href="/billing"
+                  className={styles.menuItem}
+                  role="menuitem"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <CreditCard size={16} aria-hidden="true" />
+                  <span>Manage Billing</span>
+                </Link>
+              </>
             )}
 
             {isAuthenticated && (
